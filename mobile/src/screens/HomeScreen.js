@@ -52,7 +52,9 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       <View style={styles.alertBox}>
-        <Text style={styles.alertTitle}>Alertas de stock (<= 1): {lowStock.length}</Text>
+        <Text style={styles.alertTitle}>
+          Alertas de stock ({"<="} 1): {lowStock.length}
+        </Text>
         {lowStock.slice(0, 5).map((item) => (
           <Text key={item.variant_id} style={styles.alertRow}>
             {item.product_name} ({item.variant_name || "Base"}) - {item.qty_on_hand}

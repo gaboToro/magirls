@@ -8,6 +8,7 @@ export default function LoginScreen() {
   const { signIn } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const onLogin = async () => {
@@ -43,13 +44,21 @@ export default function LoginScreen() {
         value={username}
         onChangeText={setUsername}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Contrasena"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.passwordContainer}>
+        <TextInput
+          style={styles.passwordInput}
+          placeholder="Contrasena"
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TouchableOpacity
+          onPress={() => setShowPassword((prev) => !prev)}
+          style={styles.passwordToggle}
+        >
+          <Text style={styles.passwordToggleText}>{showPassword ? "Ocultar" : "Mostrar"}</Text>
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity style={styles.button} onPress={onLogin} disabled={loading}>
         <Text style={styles.buttonText}>{loading ? "Ingresando..." : "Ingresar"}</Text>
@@ -81,6 +90,28 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     marginBottom: 10
+  },
+  passwordContainer: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#dccdbf",
+    borderRadius: 10,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 12
+  },
+  passwordToggle: {
+    paddingVertical: 8,
+    paddingLeft: 12
+  },
+  passwordToggleText: {
+    color: "#6b4f3e",
+    fontWeight: "700"
   },
   button: {
     marginTop: 8,
