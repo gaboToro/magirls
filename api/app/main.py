@@ -13,6 +13,7 @@ from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.inventory import (
     InventoryByCodeResponse,
     InventoryListItem,
+    InventoryUpdateRequest,
     LowStockItem,
     ScanUpsertRequest,
     StockIncreaseRequest,
@@ -93,6 +94,8 @@ def get_variant_by_code(db: Session, code: str) -> dict[str, Any] | None:
             JOIN products p ON p.id = pv.product_id
             LEFT JOIN v_variant_stock vs ON vs.variant_id = pv.id
             WHERE bv.barcode_code = :code
+              AND p.is_active = TRUE
+              AND pv.is_active = TRUE
             LIMIT 1
             """
         ),
@@ -133,6 +136,46 @@ def list_inventory_items(db: Session) -> list[dict[str, Any]]:
         )
     ).mappings().all()
     return [dict(row) for row in rows]
+
+
+def get_inventory_item_by_variant(db: Session, variant_id: str) -> dict[str, Any] | None:
+    row = db.execute(
+        text(
+            """
+            SELECT
+              pv.id::text AS variant_id,
+              p.id::text AS product_id,
+              p.name AS product_name,
+              p.brand,
+              p.category,
+              p.description,
+              p.photo_url,
+              COALESCE(pv.variant_name, CONCAT_WS(' / ', pv.color, pv.size)) AS variant_name,
+              pv.color,
+              pv.size,
+              pv.location,
+              pv.sale_price,
+              pv.purchase_price,
+              COALESCE(vs.qty_on_hand, 0) AS qty_on_hand,
+              (
+                SELECT bv.barcode_code
+                FROM barcode_variants bv
+                WHERE bv.variant_id = pv.id
+                ORDER BY bv.is_primary DESC, bv.created_at ASC
+                LIMIT 1
+              ) AS primary_code
+            FROM product_variants pv
+            JOIN products p ON p.id = pv.product_id
+            LEFT JOIN v_variant_stock vs ON vs.variant_id = pv.id
+            WHERE pv.id = CAST(:variant_id AS uuid)
+              AND p.is_active = TRUE
+              AND pv.is_active = TRUE
+            LIMIT 1
+            """
+        ),
+        {"variant_id": variant_id},
+    ).mappings().first()
+    return dict(row) if row else None
 
 
 @app.get("/health")
@@ -187,6 +230,10 @@ def dashboard_summary(
               SELECT COALESCE(SUM(vs.qty_on_hand * pv.purchase_price), 0) AS amount
               FROM v_variant_stock vs
               JOIN product_variants pv ON pv.id = vs.variant_id
+              JOIN products p ON p.id = pv.product_id
+              WHERE pv.is_active = TRUE
+                AND p.is_active = TRUE
+                AND vs.qty_on_hand > 0
             ),
             sales_gross AS (
               SELECT COALESCE(SUM(total), 0) AS amount
@@ -401,6 +448,184 @@ def inventory_items(
     ]
 
 
+@app.patch("/inventory/items/{variant_id}", response_model=InventoryListItem)
+def update_inventory_item(
+    variant_id: str,
+    payload: InventoryUpdateRequest,
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
+    current = get_inventory_item_by_variant(db, variant_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    data = payload.model_dump(exclude_unset=True)
+    product_updates = {
+        "product_name": data.get("product_name", current["product_name"]),
+        "brand": data.get("brand", current["brand"]),
+        "category": data.get("category", current["category"]),
+        "description": data.get("description", current["description"]),
+        "photo_url": data.get("photo_url", current["photo_url"]),
+    }
+    variant_updates = {
+        "variant_name": data.get("variant_name", current["variant_name"]),
+        "color": data.get("color", current["color"]),
+        "size": data.get("size", current["size"]),
+        "location": data.get("location", current["location"]),
+        "purchase_price": current["purchase_price"]
+        if data.get("purchase_price", current["purchase_price"]) is None
+        else data.get("purchase_price", current["purchase_price"]),
+        "sale_price": current["sale_price"]
+        if data.get("sale_price", current["sale_price"]) is None
+        else data.get("sale_price", current["sale_price"]),
+    }
+
+    try:
+        db.execute(
+            text(
+                """
+                UPDATE products
+                SET
+                  name = :name,
+                  brand = :brand,
+                  category = :category,
+                  description = :description,
+                  photo_url = :photo_url,
+                  updated_at = now()
+                WHERE id = CAST(:product_id AS uuid)
+                """
+            ),
+            {
+                "name": product_updates["product_name"],
+                "brand": product_updates["brand"],
+                "category": product_updates["category"],
+                "description": product_updates["description"],
+                "photo_url": product_updates["photo_url"],
+                "product_id": current["product_id"],
+            },
+        )
+
+        db.execute(
+            text(
+                """
+                UPDATE product_variants
+                SET
+                  variant_name = :variant_name,
+                  color = :color,
+                  size = :size,
+                  location = :location,
+                  purchase_price = :purchase_price,
+                  sale_price = :sale_price,
+                  updated_at = now()
+                WHERE id = CAST(:variant_id AS uuid)
+                """
+            ),
+            {
+                "variant_name": variant_updates["variant_name"],
+                "color": variant_updates["color"],
+                "size": variant_updates["size"],
+                "location": variant_updates["location"],
+                "purchase_price": variant_updates["purchase_price"],
+                "sale_price": variant_updates["sale_price"],
+                "variant_id": variant_id,
+            },
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Update failed: {exc.orig}")
+
+    updated = get_inventory_item_by_variant(db, variant_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Variant not found after update")
+
+    return InventoryListItem(
+        variant_id=updated["variant_id"],
+        product_name=updated["product_name"],
+        variant_name=updated["variant_name"],
+        category=updated["category"],
+        brand=updated["brand"],
+        location=updated["location"],
+        photo_url=updated["photo_url"],
+        sale_price=float(updated["sale_price"]),
+        purchase_price=float(updated["purchase_price"]),
+        qty_on_hand=int(updated["qty_on_hand"]),
+        primary_code=updated["primary_code"],
+    )
+
+
+@app.delete("/inventory/items/{variant_id}")
+def delete_inventory_item(
+    variant_id: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
+    current = db.execute(
+        text(
+            """
+            SELECT
+              pv.id::text AS variant_id,
+              p.id::text AS product_id
+            FROM product_variants pv
+            JOIN products p ON p.id = pv.product_id
+            WHERE pv.id = CAST(:variant_id AS uuid)
+            LIMIT 1
+            """
+        ),
+        {"variant_id": variant_id},
+    ).mappings().first()
+
+    if not current:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    product_id = current["product_id"]
+
+    try:
+        db.execute(
+            text(
+                """
+                UPDATE product_variants
+                SET is_active = FALSE,
+                    updated_at = now()
+                WHERE id = CAST(:variant_id AS uuid)
+                """
+            ),
+            {"variant_id": variant_id},
+        )
+
+        remaining = db.execute(
+            text(
+                """
+                SELECT COUNT(*)::int AS count
+                FROM product_variants
+                WHERE product_id = CAST(:product_id AS uuid)
+                  AND is_active = TRUE
+                """
+            ),
+            {"product_id": product_id},
+        ).mappings().first()
+
+        if remaining and remaining["count"] == 0:
+            db.execute(
+                text(
+                    """
+                    UPDATE products
+                    SET is_active = FALSE,
+                        updated_at = now()
+                    WHERE id = CAST(:product_id AS uuid)
+                    """
+                ),
+                {"product_id": product_id},
+            )
+
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Delete failed: {exc.orig}")
+
+    return {"ok": True, "deleted_variant_id": variant_id}
+
+
 @app.get("/inventory/alerts/low-stock", response_model=list[LowStockItem])
 def low_stock_alerts(
     db: Session = Depends(get_db),
@@ -425,6 +650,8 @@ def low_stock_alerts(
             JOIN products p ON p.id = pv.product_id
             LEFT JOIN v_variant_stock vs ON vs.variant_id = pv.id
             WHERE COALESCE(vs.qty_on_hand, 0) <= 1
+              AND p.is_active = TRUE
+              AND pv.is_active = TRUE
             ORDER BY qty_on_hand ASC, p.name ASC
             """
         )

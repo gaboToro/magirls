@@ -8,7 +8,7 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "Esta app necesita camara para escanear codigos QR y de barras."
+        "NSCameraUsageDescription": "Esta app necesita camara para escanear codigos y tomar fotos de productos."
       }
     },
     "android": {
@@ -17,7 +17,14 @@
       ]
     },
     "plugins": [
-      "expo-camera"
+      "expo-camera",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La app necesita acceso para guardar y usar fotos de productos.",
+          "cameraPermission": "La app necesita camara para tomar fotos de productos."
+        }
+      ]
     ]
   }
 }
