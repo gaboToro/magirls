@@ -1,0 +1,15 @@
+﻿# Python
+__pycache__/
+*.pyc
+api/.venv/
+
+# Node
+mobile/node_modules/
+
+# Env files
+api/.env
+mobile/.env
+
+# Expo
+mobile/.expo/
+mobile/dist/
