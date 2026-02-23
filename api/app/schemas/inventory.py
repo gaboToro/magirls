@@ -53,3 +53,17 @@ class InventoryListItem(BaseModel):
     purchase_price: float
     qty_on_hand: int
     primary_code: str | None
+
+
+class InventoryUpdateRequest(BaseModel):
+    product_name: str | None = None
+    brand: str | None = None
+    category: str | None = None
+    description: str | None = None
+    photo_url: str | None = None
+    variant_name: str | None = None
+    color: str | None = None
+    size: str | None = None
+    location: str | None = None
+    purchase_price: float | None = None
+    sale_price: float | None = None
