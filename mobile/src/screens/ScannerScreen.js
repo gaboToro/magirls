@@ -31,6 +31,8 @@ export default function ScannerScreen({ route, navigation }) {
   const [brand, setBrand] = useState("");
   const [category, setCategory] = useState("");
   const [variantName, setVariantName] = useState("");
+  const [location, setLocation] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
   const [initialQty, setInitialQty] = useState("1");
@@ -100,7 +102,9 @@ export default function ScannerScreen({ route, navigation }) {
         product_name: productName,
         brand,
         category,
+        photo_url: photoUrl || null,
         variant_name: variantName || null,
+        location: location || null,
         purchase_price: Number(purchasePrice || 0),
         sale_price: Number(salePrice || 0),
         initial_qty: Number(initialQty || 0)
@@ -177,6 +181,8 @@ export default function ScannerScreen({ route, navigation }) {
           <TextInput style={styles.input} placeholder="Marca" value={brand} onChangeText={setBrand} />
           <TextInput style={styles.input} placeholder="Categoria" value={category} onChangeText={setCategory} />
           <TextInput style={styles.input} placeholder="Variante (opcional)" value={variantName} onChangeText={setVariantName} />
+          <TextInput style={styles.input} placeholder="Ubicacion (ej: Estante A1)" value={location} onChangeText={setLocation} />
+          <TextInput style={styles.input} placeholder="URL de fotografia (opcional)" value={photoUrl} onChangeText={setPhotoUrl} />
           <TextInput style={styles.input} placeholder="Costo compra" keyboardType="decimal-pad" value={purchasePrice} onChangeText={setPurchasePrice} />
           <TextInput style={styles.input} placeholder="Precio venta" keyboardType="decimal-pad" value={salePrice} onChangeText={setSalePrice} />
           <TextInput style={styles.input} placeholder="Stock inicial" keyboardType="numeric" value={initialQty} onChangeText={setInitialQty} />
