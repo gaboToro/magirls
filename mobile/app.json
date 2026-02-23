@@ -1,0 +1,23 @@
+﻿{
+  "expo": {
+    "name": "Ma' Girls",
+    "slug": "magirls-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Esta app necesita camara para escanear codigos QR y de barras."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-camera"
+    ]
+  }
+}
