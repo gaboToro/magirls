@@ -1,4 +1,4 @@
-﻿{
+{
   "expo": {
     "name": "Ma' Girls",
     "slug": "magirls-mobile",
@@ -12,8 +12,10 @@
       }
     },
     "android": {
+      "package": "com.gabo_toro.magirls",
       "permissions": [
-        "CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -25,6 +27,11 @@
           "cameraPermission": "La app necesita camara para tomar fotos de productos."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "69e822f1-abcc-446a-9054-f185680582bf"
+      }
+    }
   }
 }
