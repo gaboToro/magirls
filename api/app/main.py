@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.inventory import (
     InventoryByCodeResponse,
+    InventoryListItem,
     LowStockItem,
     ScanUpsertRequest,
     StockIncreaseRequest,
@@ -99,6 +100,39 @@ def get_variant_by_code(db: Session, code: str) -> dict[str, Any] | None:
     ).mappings().first()
 
     return dict(row) if row else None
+
+
+def list_inventory_items(db: Session) -> list[dict[str, Any]]:
+    rows = db.execute(
+        text(
+            """
+            SELECT
+              pv.id::text AS variant_id,
+              p.name AS product_name,
+              COALESCE(pv.variant_name, CONCAT_WS(' / ', pv.color, pv.size)) AS variant_name,
+              p.category,
+              p.brand,
+              pv.location,
+              p.photo_url,
+              pv.sale_price,
+              pv.purchase_price,
+              COALESCE(vs.qty_on_hand, 0) AS qty_on_hand,
+              (
+                SELECT bv.barcode_code
+                FROM barcode_variants bv
+                WHERE bv.variant_id = pv.id
+                ORDER BY bv.is_primary DESC, bv.created_at ASC
+                LIMIT 1
+              ) AS primary_code
+            FROM product_variants pv
+            JOIN products p ON p.id = pv.product_id
+            LEFT JOIN v_variant_stock vs ON vs.variant_id = pv.id
+            WHERE p.is_active = TRUE AND pv.is_active = TRUE
+            ORDER BY p.name ASC, variant_name ASC
+            """
+        )
+    ).mappings().all()
+    return [dict(row) for row in rows]
 
 
 @app.get("/health")
@@ -200,8 +234,8 @@ def scan_upsert(
         product = db.execute(
             text(
                 """
-                INSERT INTO products (name, brand, category, description)
-                VALUES (:name, :brand, :category, :description)
+                INSERT INTO products (name, brand, category, description, photo_url)
+                VALUES (:name, :brand, :category, :description, :photo_url)
                 RETURNING id::text AS id
                 """
             ),
@@ -210,6 +244,7 @@ def scan_upsert(
                 "brand": payload.brand,
                 "category": payload.category,
                 "description": payload.description,
+                "photo_url": payload.photo_url,
             },
         ).mappings().first()
 
@@ -221,6 +256,7 @@ def scan_upsert(
                   variant_name,
                   color,
                   size,
+                  location,
                   purchase_price,
                   sale_price
                 )
@@ -229,6 +265,7 @@ def scan_upsert(
                   :variant_name,
                   :color,
                   :size,
+                  :location,
                   :purchase_price,
                   :sale_price
                 )
@@ -240,6 +277,7 @@ def scan_upsert(
                 "variant_name": payload.variant_name,
                 "color": payload.color,
                 "size": payload.size,
+                "location": payload.location,
                 "purchase_price": payload.purchase_price,
                 "sale_price": payload.sale_price,
             },
@@ -337,6 +375,30 @@ def inventory_by_code(
         purchase_price=float(variant["purchase_price"]),
         qty_on_hand=int(variant["qty_on_hand"]),
     )
+
+
+@app.get("/inventory/items", response_model=list[InventoryListItem])
+def inventory_items(
+    db: Session = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
+    rows = list_inventory_items(db)
+    return [
+        InventoryListItem(
+            variant_id=row["variant_id"],
+            product_name=row["product_name"],
+            variant_name=row["variant_name"],
+            category=row["category"],
+            brand=row["brand"],
+            location=row["location"],
+            photo_url=row["photo_url"],
+            sale_price=float(row["sale_price"]),
+            purchase_price=float(row["purchase_price"]),
+            qty_on_hand=int(row["qty_on_hand"]),
+            primary_code=row["primary_code"],
+        )
+        for row in rows
+    ]
 
 
 @app.get("/inventory/alerts/low-stock", response_model=list[LowStockItem])
