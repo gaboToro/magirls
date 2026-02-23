@@ -29,6 +29,17 @@ export const api = {
   getDashboardSummary: (token) => request("/dashboard/summary", { token }),
   getLowStock: (token) => request("/inventory/alerts/low-stock", { token }),
   getInventoryItems: (token) => request("/inventory/items", { token }),
+  updateInventoryItem: (token, variantId, data) =>
+    request(`/inventory/items/${encodeURIComponent(variantId)}`, {
+      method: "PATCH",
+      token,
+      body: data
+    }),
+  deleteInventoryItem: (token, variantId) =>
+    request(`/inventory/items/${encodeURIComponent(variantId)}`, {
+      method: "DELETE",
+      token
+    }),
   getByCode: (token, code) => request(`/inventory/by-code/${encodeURIComponent(code)}`, { token }),
   scanIncrease: (token, data) => request("/inventory/scan-increase", { method: "POST", token, body: data }),
   scanUpsert: (token, data) => request("/catalog/scan-upsert", { method: "POST", token, body: data }),

@@ -1,6 +1,7 @@
 ﻿import { useState } from "react";
 import {
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,6 +10,7 @@ import {
   View
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -33,15 +35,24 @@ export default function ScannerScreen({ route, navigation }) {
   const [variantName, setVariantName] = useState("");
   const [location, setLocation] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
-  const [purchasePrice, setPurchasePrice] = useState("0");
-  const [salePrice, setSalePrice] = useState("0");
-  const [initialQty, setInitialQty] = useState("1");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  const [initialQty, setInitialQty] = useState("");
 
   const resetState = () => {
     setLocked(false);
     setCode("");
     setExisting(null);
     setNotFound(false);
+    setProductName("");
+    setBrand("");
+    setCategory("");
+    setVariantName("");
+    setLocation("");
+    setPhotoUrl("");
+    setPurchasePrice("");
+    setSalePrice("");
+    setInitialQty("");
   };
 
   const onBarcodeScanned = async ({ data }) => {
@@ -116,6 +127,35 @@ export default function ScannerScreen({ route, navigation }) {
     }
   };
 
+  const takePhoto = async () => {
+    try {
+      const cameraPerm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!cameraPerm.granted) {
+        Alert.alert("Permiso requerido", "Debes conceder permiso de camara para tomar fotos.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.4,
+        base64: true
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      if (asset.base64) {
+        setPhotoUrl(`data:image/jpeg;base64,${asset.base64}`);
+      } else if (asset.uri) {
+        setPhotoUrl(asset.uri);
+      }
+    } catch (err) {
+      Alert.alert("Error", "No se pudo tomar la fotografia.");
+    }
+  };
+
   if (!permission) {
     return <View style={styles.center}><Text>Cargando permisos de camara...</Text></View>;
   }
@@ -182,10 +222,15 @@ export default function ScannerScreen({ route, navigation }) {
           <TextInput style={styles.input} placeholder="Categoria" value={category} onChangeText={setCategory} />
           <TextInput style={styles.input} placeholder="Variante (opcional)" value={variantName} onChangeText={setVariantName} />
           <TextInput style={styles.input} placeholder="Ubicacion (ej: Estante A1)" value={location} onChangeText={setLocation} />
-          <TextInput style={styles.input} placeholder="URL de fotografia (opcional)" value={photoUrl} onChangeText={setPhotoUrl} />
-          <TextInput style={styles.input} placeholder="Costo compra" keyboardType="decimal-pad" value={purchasePrice} onChangeText={setPurchasePrice} />
-          <TextInput style={styles.input} placeholder="Precio venta" keyboardType="decimal-pad" value={salePrice} onChangeText={setSalePrice} />
-          <TextInput style={styles.input} placeholder="Stock inicial" keyboardType="numeric" value={initialQty} onChangeText={setInitialQty} />
+          <TextInput style={styles.input} placeholder="Precio compra (ej: 12.50)" keyboardType="decimal-pad" value={purchasePrice} onChangeText={setPurchasePrice} />
+          <TextInput style={styles.input} placeholder="Precio venta (ej: 19.90)" keyboardType="decimal-pad" value={salePrice} onChangeText={setSalePrice} />
+          <TextInput style={styles.input} placeholder="Stock inicial (ej: 10)" keyboardType="numeric" value={initialQty} onChangeText={setInitialQty} />
+          <TouchableOpacity style={styles.secondaryBtn} onPress={takePhoto}>
+            <Text style={styles.secondaryBtnText}>
+              {photoUrl ? "Tomar fotografia nuevamente" : "Tomar fotografia"}
+            </Text>
+          </TouchableOpacity>
+          {!!photoUrl && <Image source={{ uri: photoUrl }} style={styles.previewPhoto} resizeMode="cover" />}
           <TouchableOpacity style={styles.btn} onPress={createFromScan}>
             <Text style={styles.btnText}>Crear producto por escaneo</Text>
           </TouchableOpacity>
@@ -224,6 +269,20 @@ const styles = StyleSheet.create({
   },
   btn: { backgroundColor: "#4a2e1f", borderRadius: 10, padding: 12, alignItems: "center" },
   btnText: { color: "#fff", fontWeight: "700" },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderColor: "#6b4f3e",
+    borderRadius: 10,
+    padding: 10,
+    alignItems: "center"
+  },
+  secondaryBtnText: { color: "#6b4f3e", fontWeight: "700" },
+  previewPhoto: {
+    width: "100%",
+    height: 180,
+    borderRadius: 10,
+    backgroundColor: "#ece3d9"
+  },
   altBtn: { borderWidth: 1, borderColor: "#6b4f3e", borderRadius: 10, padding: 12, alignItems: "center" },
   altBtnText: { color: "#6b4f3e", fontWeight: "700" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
